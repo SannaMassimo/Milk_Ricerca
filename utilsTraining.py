@@ -1,0 +1,121 @@
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import numpy as np
+import torch
+
+""" utils functions for training """
+
+# Split the dataset in train and test set (test_size can be either the number of cows or the percentage of cows)
+def split_cows_by_id(cluster_data, random_state=None, test_size=0.085):
+    unique_cows = cluster_data['id_cow'].unique()
+
+    # Calculate number of cow for the test
+    if test_size < 1:
+      n_test = max(1, int(len(unique_cows) * test_size))
+    else:
+      n_test = test_size
+
+    if random_state is not None:
+        np.random.seed(random_state)
+    test_cows = np.random.choice(unique_cows, size=n_test, replace=False)
+
+    train_data = cluster_data[~cluster_data['id_cow'].isin(test_cows)]
+    test_data = cluster_data[cluster_data['id_cow'].isin(test_cows)]
+
+    print(f"  Train: {train_data['id_cow'].nunique()} mucche, {len(train_data)} records")
+    print(f"  Test:  {test_data['id_cow'].nunique()} mucche, {len(test_data)} records")
+
+    return train_data, test_data
+
+# Prepare sequences for LSTM
+def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
+    sequences = []
+    targets = []
+
+    # Sort by cow and date
+    df = df.sort_values(['id_cow', 'date'])
+    grouped = df.groupby('id_cow')
+
+    for _, cow_df in grouped:
+        # Check if the cow has enough data for at least one sequence + target
+        if len(cow_df) > sequence_length:
+            cow_features = cow_df[feature_cols].values.astype(np.float32)
+            cow_target = cow_df[target_col].values.astype(np.float32)
+            for i in range(len(cow_df) - sequence_length):
+                sequences.append(cow_features[i:i+sequence_length])
+                targets.append(cow_target[i+sequence_length])
+        else:
+            raise Exception(f"Warning: Cow {cow_df['id_cow'].iloc[0]} has not enough data for sequences. Skipping.")
+
+    return np.array(sequences), np.array(targets)
+
+def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
+    train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size) #0.085
+
+    feature_scaler = StandardScaler()
+    target_scaler = StandardScaler()
+    feature_scaler.fit(train_data[features])
+    target_scaler.fit(train_data[[target_name]])
+
+    train_features_scaled = feature_scaler.transform(train_data[features])
+    test_features_scaled = feature_scaler.transform(test_data[features])
+    train_target_scaled = target_scaler.transform(train_data[[target_name]]).flatten()
+    test_target_scaled = target_scaler.transform(test_data[[target_name]]).flatten()
+
+    train_scaled_df = pd.DataFrame(train_features_scaled, columns=features, index=train_data.index)
+    train_scaled_df[target_name] = train_target_scaled
+
+    test_scaled_df = pd.DataFrame(test_features_scaled, columns=features, index=test_data.index)
+    test_scaled_df[target_name] = test_target_scaled
+
+    train_scaled_df['id_cow'] = train_data['id_cow']
+    train_scaled_df['date'] = train_data['date']
+    test_scaled_df['id_cow'] = test_data['id_cow']
+    test_scaled_df['date'] = test_data['date']
+
+    train_scaled_df = train_scaled_df.dropna()
+    test_scaled_df = test_scaled_df.dropna()
+
+    X_train, y_train = prepare_sequences(train_scaled_df, features, target_name,  sequence_length)
+    X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length)
+
+    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32).to(device), torch.tensor(y_train, dtype=torch.float32).to(device))
+    train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
+
+    test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32).to(device), torch.tensor(y_test, dtype=torch.float32).to(device))
+    test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
+
+    return train_loader, test_loader, feature_scaler, target_scaler
+
+# This class save the model if the validation loss decrease and stop the training if it doesn't decrease for a certain number of epochs
+class EarlyStopping:
+    def __init__(self, patience=10, delta=0, path='checkpoint.pt'):
+        self.patience = patience
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.inf
+        self.delta = delta
+        self.path = path
+        self.best_model = None
+
+    def __call__(self, val_loss, model):
+        score = -val_loss
+        if self.best_score is None:
+            self.best_score = score
+            self.best_model = model
+            self.save_checkpoint(val_loss)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.best_model = model
+            self.save_checkpoint(val_loss)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss):
+        torch.save(self.best_model.state_dict(), self.path)
+        self.val_loss_min = val_loss
