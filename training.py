@@ -8,7 +8,7 @@ import joblib
 import torch
 import os
 
-from utilsTraining import prepareData, EarlyStopping, prepare_sequences
+from utilsTraining import prepareData, EarlyStopping, prepare_sequences, set_seeds
  
 """ Training of the data """
 
@@ -25,22 +25,21 @@ class LSTMModel(nn.Module):
         return self.fc(lstm_out[:, -1, :])
 
 class TrainingModel:
-    def __init__(self, load: bool = False, model_path=None, sequence_length=10, num_clusters=None, hidden_size=32, num_layers=2, dropout_rate=0.4,  
-                 features=['LP', 'milkings', 'cons', 'milk_diff','THI', 'thi_var','tot_prod', 'avg_milk_duration', 'prod_avg', 'prod_var', 'avg_prod_avg', 'avg_prod_var'],
-                 target_name='tot_prod'):
+    def __init__(self, config):
+        set_seeds(config['training']['random_state'])
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.target_name = target_name
-        self.features = features
-        self.num_layers = num_layers
-        self.hidden_size = hidden_size
-        self.dropout_rate = dropout_rate
-        self.sequence_length = sequence_length
+        self.target_name = config['training']['target_name']
+        self.features = config['features']
+        self.num_layers = config['training']['model_params']['num_layers']
+        self.hidden_size = config['training']['model_params']['hidden_size']
+        self.dropout_rate = config['training']['model_params']['dropout_rate']
+        self.sequence_length = config['training']['sequence_length']
         self.models = {}
         self.feature_scalers = {}
         self.target_scalers = {}
-        if load: # load is True means that we want to load the model, so we don't need to train it
-            self.model_path = model_path
-            self.loadModel(model_path=model_path, num_clusters=num_clusters)
+        self.model_path = config['paths']['model_output_dir']
+        if config['training']['perform_training'] == False: # load is True means that we want to load the model, so we don't need to train it
+            self.loadModel(model_path=self.model_path, num_clusters=config['clustering']['n_clusters'])
                 
     def loadModel(self, model_path=None, num_clusters=None):
         if model_path is None:
@@ -70,16 +69,24 @@ class TrainingModel:
             self.feature_scalers[i] = joblib.load(feature_scaler_path)
             self.target_scalers[i] = joblib.load(target_scaler_path)
 
-    def train(self, data: pd.DataFrame, model_dir = "./modelGenerated", epochs=1000, batch_size=64, 
-              lr=0.0005, test_size = 0.085, weight_decay_rate=1e-4, 
-              patience=30, delta=0.00001, random_state = None):
-        
+    def train(self, config, data: pd.DataFrame, random_state = None):
+        random_state = config['training']['random_state']
+        epochs = config['training']['hyperparameters']['epochs']
+        batch_size = config['training']['hyperparameters']['batch_size']
+        lr = config['training']['hyperparameters']['learning_rate']
+        test_size = config['training']['test_size']
+        weight_decay_rate = config['training']['hyperparameters']['weight_decay']
+        patience = config['training']['early_stopping']['patience']
+        delta = config['training']['early_stopping']['delta']
+
+        set_seeds(random_state)
+
         if 'cluster' not in data.columns:
             raise ValueError("Errore: il dataframe non risulta clusterizzato.")
         clusters = data['cluster'].unique()
         cluster_losses = {}
 
-        models_dir = model_dir
+        models_dir = self.model_path
         os.makedirs(models_dir, exist_ok=True)
         
         self.models = {} # Resetta/Inizializza
@@ -93,7 +100,7 @@ class TrainingModel:
                 print(f"Cluster {cluster} ha pochi dati ({len(cluster_data)} righe). Salto.")
                 continue
             
-            train_loader, test_loader, f_scaler, t_scaler = prepareData(data, self.device, random_state, self.features, self.target_name, self.sequence_length, batch_size, test_size)
+            train_loader, test_loader, f_scaler, t_scaler = prepareData(cluster_data, self.device, random_state, self.features, self.target_name, self.sequence_length, batch_size, test_size)
             self.feature_scalers[cluster] = f_scaler
             self.target_scalers[cluster] = t_scaler
             joblib.dump(f_scaler, os.path.join(models_dir, f'feature_scaler_cluster_{cluster}.pkl')) # save the scalers
@@ -154,6 +161,7 @@ class TrainingModel:
         print("\nLoss finale per ogni cluster:")
         for cl, loss in cluster_losses.items():
             print(f"Cluster {cl}: train loss:  {loss['train_loss']:.4f}; test loss: {loss['test_loss']:.4f}")
+
 
     def predict_cow(self, data: pd.DataFrame, cow_id: str):
         start_date = pd.to_datetime('2021-07-01')

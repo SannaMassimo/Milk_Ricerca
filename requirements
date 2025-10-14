@@ -1,0 +1,11 @@
+numpy==2.0.2
+scikit-learn==1.6.1
+torch==2.8.0
+joblib==1.5.2
+pandas
+matplotlib
+seaborn
+tslearn
+tqdm
+h5py
+pyyaml

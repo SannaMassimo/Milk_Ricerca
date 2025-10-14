@@ -2,6 +2,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import numpy as np
+import random
 import torch
 
 """ utils functions for training """
@@ -87,6 +88,74 @@ def prepareData(data, device, random_state, features, target_name, sequence_leng
     test_loader = DataLoader(test_dataset, batch_size, shuffle=False)
 
     return train_loader, test_loader, feature_scaler, target_scaler
+
+def set_seeds(seed_value=42):
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+def run_permutation_importance(model, test_loader, feature_names, target_scaler, device):
+    """
+    Calcola la feature importance tramite permutazione sul set di test.
+    Restituisce un DataFrame con l'importanza di ogni feature.
+    """
+    model.eval()
+
+    # 1. Calcola la baseline loss (MSE) sul test set non modificato
+    baseline_mse = 0.0
+    with torch.no_grad():
+        for batch_X, batch_y in test_loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device).unsqueeze(1)
+            outputs = model(batch_X)
+            loss = nn.MSELoss()(outputs, batch_y)
+            baseline_mse += loss.item() * batch_X.size(0)
+    baseline_mse /= len(test_loader.dataset)
+    print(f"Baseline Test MSE (scaled): {baseline_mse:.4f}\n")
+
+    # Dizionario per salvare l'importanza
+    importances = {}
+
+    # 2. Itera su ogni feature
+    for i, feature_name in enumerate(feature_names):
+        print(f"Permuting feature: {feature_name}...")
+
+        permuted_mse = 0.0
+
+        # Copia i dati per non modificare l'originale
+        X_test_original = test_loader.dataset.tensors[0].clone().cpu().numpy()
+        y_test_original = test_loader.dataset.tensors[1].clone().cpu().numpy()
+
+        # Permuta (mescola) solo la colonna della feature corrente
+        np.random.shuffle(X_test_original[:, :, i])
+
+        # Crea un nuovo DataLoader con i dati permutati
+        permuted_dataset = TensorDataset(torch.tensor(X_test_original, dtype=torch.float32).to(device),
+                                         torch.tensor(y_test_original, dtype=torch.float32).to(device))
+        permuted_loader = DataLoader(permuted_dataset, batch_size=test_loader.batch_size)
+
+        # 3. Calcola la loss con la feature permutata
+        with torch.no_grad():
+            for batch_X, batch_y in permuted_loader:
+                batch_y = batch_y.unsqueeze(1)
+                outputs = model(batch_X)
+                loss = nn.MSELoss()(outputs, batch_y)
+                permuted_mse += loss.item() * batch_X.size(0)
+        permuted_mse /= len(permuted_loader.dataset)
+
+        # 4. L'importanza è l'aumento della loss
+        # Usiamo la differenza, ma si potrebbe usare anche il rapporto
+        importance_score = permuted_mse - baseline_mse
+        importances[feature_name] = importance_score
+
+    # 5. Formatta e restituisci i risultati
+    importance_df = pd.DataFrame.from_dict(importances, orient='index', columns=['Importance (Increase in MSE)'])
+    importance_df = importance_df.sort_values(by='Importance (Increase in MSE)', ascending=False)
+
+    return importance_df
 
 # This class save the model if the validation loss decrease and stop the training if it doesn't decrease for a certain number of epochs
 class EarlyStopping:

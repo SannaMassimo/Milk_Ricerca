@@ -60,6 +60,15 @@ def load_data(path: str, cluster: bool, cluster_path=None):
 
     data['milk_diff'] = data.groupby('id_cow')['tot_prod'].diff()
 
+    data['day_of_month'] = data['date'].dt.day
+    data['month'] = data['date'].dt.month
+
+    data['month_sin'] = np.sin(2 * np.pi * data['month']/12)
+    data['month_cos'] = np.cos(2 * np.pi * data['month']/12)
+
+    data['prod_velocity'] = data.groupby('id_cow')['tot_prod'].diff()
+    data['prod_acceleration'] = data.groupby('id_cow')['prod_velocity'].diff()
+        
     if cluster:
         if cluster_path == None:
             raise Exception("cluster_path is required")
