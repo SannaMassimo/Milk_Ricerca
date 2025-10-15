@@ -60,3 +60,5 @@ training:
   early_stopping:
     patience: 35
     delta: 0.00001
+
+verbose: 1

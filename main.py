@@ -28,7 +28,7 @@ def load_conf():
         print(f"Generazione di {config['clustering']['n_clusters']} cluster...")
         
         generator = ClusterGeneration(default=False)
-        generator.fit_predict(n_clusters=config['clustering']['n_clusters'], data=data, random_state = config['clustering']['random_state'])
+        generator.fit_predict(n_clusters=config['clustering']['n_clusters'], data=data, random_state = config['clustering']['random_state'], verbose = config['verbose'])
         generator.save_clusters(ouput_path=cluster_path)
         
         print(f"Cluster generati e salvati in {cluster_path}\n")

@@ -20,17 +20,17 @@ class ClusterGeneration():
         else:
             self.cluster = None
 
-    def fit_predict(self, n_clusters: int, data: pd.DataFrame, random_state=None):
+    def fit_predict(self, n_clusters: int, data: pd.DataFrame, random_state=None, verbose = 0, n_jobs = -1):
         if random_state is None:
             model = TimeSeriesKMeans(n_clusters=n_clusters, metric='dtw')
         else:
-            model = TimeSeriesKMeans(n_clusters=n_clusters, metric='dtw', random_state=random_state)
+            model = TimeSeriesKMeans(n_clusters=n_clusters, metric='dtw', random_state=random_state, verbose=verbose, n_jobs=n_jobs)
         self.num_clusters = n_clusters
 
         prod_series_data = data.groupby("id_cow")["tot_prod"].apply(lambda x: x.values).tolist()
 
         prod_series_dataset = to_time_series_dataset(prod_series_data)
-
+        
         scaler = TimeSeriesScalerMeanVariance()
         prod_series_dataset_scaled = scaler.fit_transform(prod_series_dataset)
 
