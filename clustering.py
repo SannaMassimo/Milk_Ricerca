@@ -42,7 +42,7 @@ class ClusterGeneration():
         if self.cluster is None:
             raise Exception("Are you sure you compute clusters?")
         else:
-            np.save("./data/"+ouput_path, self.cluster)
+            np.save(ouput_path, self.cluster)
             return print("File Saved!")
 
     def print_clusters(self, data): # this plot all the clusters showing the average production of each 
