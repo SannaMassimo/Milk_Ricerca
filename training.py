@@ -156,7 +156,7 @@ class TrainingModel:
                 'train_loss': epoch_loss,
                 'test_loss': -early_stopping.best_score
             }
-        self.model_path = model_dir
+        self.model_path = models_dir
 
         print("\nLoss finale per ogni cluster:")
         for cl, loss in cluster_losses.items():
