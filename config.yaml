@@ -14,7 +14,7 @@ paths:
 # Parametri per la generazione dei cluster
 # -------------------------------------------------
 clustering:
-  perform_clustering: true # Se true, genera nuovi cluster. Se false, carica da cluster_file
+  perform_clustering: false # Se true, genera nuovi cluster. Se false, carica da cluster_file
   n_clusters: 4
   random_state: 42
 
