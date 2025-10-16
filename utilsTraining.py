@@ -38,7 +38,7 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
     df = df.sort_values(['id_cow', 'date'])
     grouped = df.groupby('id_cow')
 
-    for _, cow_df in grouped:
+    for cow_id, cow_df in grouped:
         # Check if the cow has enough data for at least one sequence + target
         if len(cow_df) > sequence_length:
             cow_features = cow_df[feature_cols].values.astype(np.float32)
