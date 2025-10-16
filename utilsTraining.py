@@ -61,45 +61,45 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
 def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
     train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size)
 
-    # --- QUESTA PARTE DEVE ESSERE PRESENTE E CORRETTA ---
     feature_scaler = StandardScaler()
     target_scaler = StandardScaler()
     feature_scaler.fit(train_data[features])
     target_scaler.fit(train_data[[target_name]])
 
-    # Applica lo scaling
     train_features_scaled = feature_scaler.transform(train_data[features])
     test_features_scaled = feature_scaler.transform(test_data[features])
     train_target_scaled = target_scaler.transform(train_data[[target_name]]).flatten()
     test_target_scaled = target_scaler.transform(test_data[[target_name]]).flatten()
 
-    # Crea i DataFrame con i dati scalati
     train_scaled_df = pd.DataFrame(train_features_scaled, columns=features, index=train_data.index)
     train_scaled_df[target_name] = train_target_scaled
-
     test_scaled_df = pd.DataFrame(test_features_scaled, columns=features, index=test_data.index)
     test_scaled_df[target_name] = test_target_scaled
 
-    # Aggiungi le colonne ID e data che servono al CowDataset per raggruppare
     train_scaled_df['id_cow'] = train_data['id_cow']
     train_scaled_df['date'] = train_data['date']
     test_scaled_df['id_cow'] = test_data['id_cow']
     test_scaled_df['date'] = test_data['date']
-    # --- FINE DEL BLOCCO DA CONTROLLARE ---
 
-    # Ora queste righe funzioneranno, perché le variabili esistono
     train_scaled_df = train_scaled_df.dropna()
     test_scaled_df = test_scaled_df.dropna()
 
-    # E queste riceveranno l'input corretto
-    train_dataset = CowDataset(train_scaled_df, features, target_name, sequence_length)
-    test_dataset = CowDataset(test_scaled_df, features, target_name, sequence_length)
-
-    use_gpu = device.type == 'cuda'
-    num_workers = min(os.cpu_count(), 8)
+    print("Pre-calcolo di tutte le sequenze per il training set... (potrebbe richiedere tempo)")
+    X_train, y_train = prepare_sequences(train_scaled_df, features, target_name, sequence_length)
     
-    train_loader = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=num_workers if use_gpu else 0, pin_memory=use_gpu)    
-    test_loader = DataLoader(test_dataset, batch_size, shuffle=False, num_workers=num_workers if use_gpu else 0, pin_memory=use_gpu)
+    print("Pre-calcolo di tutte le sequenze per il test set...")
+    X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length)
+    print("Pre-calcolo completato.")
+
+    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32))
+    test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32), torch.tensor(y_test, dtype=torch.float32))
+    
+    use_gpu = device.type == 'cuda'
+    
+    num_workers = 0 
+    
+    train_loader = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=num_workers, pin_memory=use_gpu)    
+    test_loader = DataLoader(test_dataset, batch_size, shuffle=False, num_workers=num_workers, pin_memory=use_gpu)
 
     return train_loader, test_loader, feature_scaler, target_scaler
 
