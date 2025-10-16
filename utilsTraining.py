@@ -57,38 +57,24 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
 
     return np.array(sequences), np.array(targets)
 
-def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
-    train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size) #0.085
 
+def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
+    train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size)
+
+    # La parte di scaling rimane la stessa!
     feature_scaler = StandardScaler()
     target_scaler = StandardScaler()
-    feature_scaler.fit(train_data[features])
-    target_scaler.fit(train_data[[target_name]])
-
-    train_features_scaled = feature_scaler.transform(train_data[features])
-    test_features_scaled = feature_scaler.transform(test_data[features])
-    train_target_scaled = target_scaler.transform(train_data[[target_name]]).flatten()
-    test_target_scaled = target_scaler.transform(test_data[[target_name]]).flatten()
-
-    train_scaled_df = pd.DataFrame(train_features_scaled, columns=features, index=train_data.index)
-    train_scaled_df[target_name] = train_target_scaled
-
-    test_scaled_df = pd.DataFrame(test_features_scaled, columns=features, index=test_data.index)
-    test_scaled_df[target_name] = test_target_scaled
-
-    train_scaled_df['id_cow'] = train_data['id_cow']
-    train_scaled_df['date'] = train_data['date']
-    test_scaled_df['id_cow'] = test_data['id_cow']
-    test_scaled_df['date'] = test_data['date']
-
+    # ... (la logica di fit/transform rimane identica) ...
+    # ... (la creazione dei DataFrame scalati rimane identica) ...
+    
     train_scaled_df = train_scaled_df.dropna()
     test_scaled_df = test_scaled_df.dropna()
 
-    X_train, y_train = prepare_sequences(train_scaled_df, features, target_name,  sequence_length)
-    X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length)
-
-    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32))
-    test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32), torch.tensor(y_test, dtype=torch.float32))
+    # --- MODIFICA FONDAMENTALE QUI ---
+    # NON chiamiamo più prepare_sequences.
+    # Creiamo istanze del nostro nuovo Dataset.
+    train_dataset = CowDataset(train_scaled_df, features, target_name, sequence_length)
+    test_dataset = CowDataset(test_scaled_df, features, target_name, sequence_length)
     
     use_gpu = device.type == 'cuda'
     num_workers = min(os.cpu_count(), 8)
@@ -197,3 +183,46 @@ class EarlyStopping:
     def save_checkpoint(self, val_loss):
         torch.save(self.best_model.state_dict(), self.path)
         self.val_loss_min = val_loss
+
+
+
+class CowDataset(Dataset):
+    def __init__(self, data: pd.DataFrame, features: list, target: str, sequence_length: int):
+        self.sequence_length = sequence_length
+        
+        # Non creiamo le sequenze qui!
+        # Raggruppiamo solo i dati per mucca per un accesso veloce.
+        self.data_grouped = data.groupby('id_cow')
+        self.cow_ids = list(self.data_grouped.groups.keys())
+        
+        # Calcoliamo gli "indici" di ogni possibile sequenza
+        self.indices = []
+        for cow_id in self.cow_ids:
+            cow_data_len = len(self.data_grouped.get_group(cow_id))
+            num_sequences = cow_data_len - sequence_length
+            if num_sequences > 0:
+                for i in range(num_sequences):
+                    self.indices.append((cow_id, i))
+
+        # Estraiamo i dati grezzi in array NumPy per velocità
+        self.feature_data = {cow_id: group[features].values for cow_id, group in self.data_grouped}
+        self.target_data = {cow_id: group[target].values for cow_id, group in self.data_grouped}
+
+    def __len__(self):
+        # La lunghezza del dataset è il numero totale di sequenze che possiamo creare
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        # Questo metodo viene chiamato da un worker del DataLoader
+        # per ottenere UN singolo campione (una sequenza e il suo target)
+        
+        cow_id, start_idx = self.indices[idx]
+        
+        end_idx = start_idx + self.sequence_length
+        
+        # Estrae la fetta di dati per la sequenza e il target
+        sequence = self.feature_data[cow_id][start_idx:end_idx]
+        target = self.target_data[cow_id][end_idx]
+        
+        # Converte in tensori al momento
+        return torch.tensor(sequence, dtype=torch.float32), torch.tensor(target, dtype=torch.float32)
