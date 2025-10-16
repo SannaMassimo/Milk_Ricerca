@@ -61,18 +61,37 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
 def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
     train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size)
 
-    # La parte di scaling rimane la stessa!
+    # --- QUESTA PARTE DEVE ESSERE PRESENTE E CORRETTA ---
     feature_scaler = StandardScaler()
     target_scaler = StandardScaler()
-    # ... (la logica di fit/transform rimane identica) ...
-    # ... (la creazione dei DataFrame scalati rimane identica) ...
-    
+    feature_scaler.fit(train_data[features])
+    target_scaler.fit(train_data[[target_name]])
+
+    # Applica lo scaling
+    train_features_scaled = feature_scaler.transform(train_data[features])
+    test_features_scaled = feature_scaler.transform(test_data[features])
+    train_target_scaled = target_scaler.transform(train_data[[target_name]]).flatten()
+    test_target_scaled = target_scaler.transform(test_data[[target_name]]).flatten()
+
+    # Crea i DataFrame con i dati scalati
+    train_scaled_df = pd.DataFrame(train_features_scaled, columns=features, index=train_data.index)
+    train_scaled_df[target_name] = train_target_scaled
+
+    test_scaled_df = pd.DataFrame(test_features_scaled, columns=features, index=test_data.index)
+    test_scaled_df[target_name] = test_target_scaled
+
+    # Aggiungi le colonne ID e data che servono al CowDataset per raggruppare
+    train_scaled_df['id_cow'] = train_data['id_cow']
+    train_scaled_df['date'] = train_data['date']
+    test_scaled_df['id_cow'] = test_data['id_cow']
+    test_scaled_df['date'] = test_data['date']
+    # --- FINE DEL BLOCCO DA CONTROLLARE ---
+
+    # Ora queste righe funzioneranno, perché le variabili esistono
     train_scaled_df = train_scaled_df.dropna()
     test_scaled_df = test_scaled_df.dropna()
 
-    # --- MODIFICA FONDAMENTALE QUI ---
-    # NON chiamiamo più prepare_sequences.
-    # Creiamo istanze del nostro nuovo Dataset.
+    # E queste riceveranno l'input corretto
     train_dataset = CowDataset(train_scaled_df, features, target_name, sequence_length)
     test_dataset = CowDataset(test_scaled_df, features, target_name, sequence_length)
 
