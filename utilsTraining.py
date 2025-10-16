@@ -75,7 +75,7 @@ def prepareData(data, device, random_state, features, target_name, sequence_leng
     # Creiamo istanze del nostro nuovo Dataset.
     train_dataset = CowDataset(train_scaled_df, features, target_name, sequence_length)
     test_dataset = CowDataset(test_scaled_df, features, target_name, sequence_length)
-    
+
     use_gpu = device.type == 'cuda'
     num_workers = min(os.cpu_count(), 8)
     
@@ -186,6 +186,7 @@ class EarlyStopping:
 
 
 
+from torch.utils.data import Dataset
 class CowDataset(Dataset):
     def __init__(self, data: pd.DataFrame, features: list, target: str, sequence_length: int):
         self.sequence_length = sequence_length
