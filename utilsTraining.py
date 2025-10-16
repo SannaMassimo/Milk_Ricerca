@@ -47,7 +47,12 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
                 sequences.append(cow_features[i:i+sequence_length])
                 targets.append(cow_target[i+sequence_length])
         else:
-            raise Exception(f"Warning: Cow {cow_df['id_cow'].iloc[0]} has not enough data for sequences. Skipping.")
+            print(f"Warning: Cow {cow_id} has only {len(cow_df)} records, which is not enough for a sequence of length {sequence_length}. Skipping this cow.")
+            continue 
+    
+    if not sequences:
+        print("Error: No sequences could be created from the provided data. Returning empty arrays.")
+        return np.array([]), np.array([])
 
     return np.array(sequences), np.array(targets)
 
