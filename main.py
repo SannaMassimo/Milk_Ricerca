@@ -33,11 +33,10 @@ def load_conf():
         
         print(f"Cluster generati e salvati in {cluster_path}\n")
 
-        data = merge_with_cluster(data, cluster_path)
-
     else: 
         generator = ClusterGeneration(default=True, cluster_path=cluster_path)
 
+    data = merge_with_cluster(data, cluster_path)
 
     model = TrainingModel(config)
     
