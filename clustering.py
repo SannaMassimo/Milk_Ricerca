@@ -15,10 +15,11 @@ class ClusterGeneration():
             if cluster_path is None:
                 raise Exception("cluster_path is required")
             else:
-                self.cluster = np.load(cluster_path)
-                self.num_clusters = len(np.unique(self.cluster))
+                saved_data = np.load(cluster_path)
+                self.cluster_mapping = dict(zip(saved_data['cow_ids'], saved_data['clusters']))
+                self.num_clusters = len(np.unique(saved_data['clusters']))
         else:
-            self.cluster = None
+            self.cluster_mapping = None
 
     def fit_predict(self, n_clusters: int, data: pd.DataFrame, random_state=None, verbose = 0, n_jobs = -1):
         if random_state is None:
@@ -27,22 +28,27 @@ class ClusterGeneration():
             model = TimeSeriesKMeans(n_clusters=n_clusters, metric='dtw', random_state=random_state, verbose=verbose, n_jobs=n_jobs)
         self.num_clusters = n_clusters
 
-        prod_series_data = data.groupby("id_cow")["tot_prod"].apply(lambda x: x.values).tolist()
+        cow_ids = data['id_cow'].unique()
+        prod_series_data = [data[data['id_cow'] == cow_id]['tot_prod'].values for cow_id in cow_ids]
 
         prod_series_dataset = to_time_series_dataset(prod_series_data)
         
         scaler = TimeSeriesScalerMeanVariance()
         prod_series_dataset_scaled = scaler.fit_transform(prod_series_dataset)
 
-        self.cluster = model.fit_predict(prod_series_dataset_scaled)
+        predicted_clusters = model.fit_predict(prod_series_dataset_scaled)
 
-        return self.cluster # numpy-format output cluster
+        self.cluster_mapping = dict(zip(cow_ids, predicted_clusters))
+
+        return self.cluster_mapping # numpy-format output cluster
 
     def save_clusters(self, ouput_path: str = "clusters.npy"): # this save your clusters in numpy format 
         if self.cluster is None:
             raise Exception("Are you sure you compute clusters?")
         else:
-            np.save(ouput_path, self.cluster)
+            cow_ids = list(self.cluster_mapping.keys())
+            clusters = list(self.cluster_mapping.values())
+            np.savez(ouput_path, cow_ids=cow_ids, clusters=clusters)
             return print("File Saved!")
 
     def print_clusters(self, data): # this plot all the clusters showing the average production of each 

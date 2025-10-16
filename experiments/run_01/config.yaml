@@ -16,7 +16,7 @@ features:
 - prod_acceleration
 - prod_velocity
 paths:
-  cluster_file: ./data/clusters4.npy
+  cluster_file: ./data/clusters4.npz
   input_data: ./data/AMerged.csv
   model_output_dir: ./experiments/run_01
 training:

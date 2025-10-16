@@ -8,11 +8,22 @@ import numpy as np
 
 def merge_with_cluster(data: pd.DataFrame, cluster_path):
     """ cluster_path must be numpy format"""
-    labels = data["id_cow"].unique()
-    clusters = np.load(cluster_path)
-
-    results = pd.DataFrame({"id_cow": labels, "cluster": clusters})
-    data = data.merge(results, on='id_cow', how='left')
+    saved_data = np.load(cluster_path)
+    
+    # Crea un DataFrame di mappatura
+    cluster_mapping_df = pd.DataFrame({
+        "id_cow": saved_data['cow_ids'], 
+        "cluster": saved_data['clusters']
+    })
+    
+    # Esegui il merge dei dati originali con la mappatura dei cluster
+    data = data.merge(cluster_mapping_df, on='id_cow', how='left')
+    
+    # Controlla se ci sono mucche senza un cluster assegnato
+    if data['cluster'].isnull().any():
+        missing_cows = data[data['cluster'].isnull()]['id_cow'].unique()
+        print(f"Attenzione: Le seguenti mucche non hanno un cluster assegnato: {missing_cows}")
+        
     return data
 
 def load_data(path: str, cluster: bool, cluster_path=None):
@@ -75,4 +86,4 @@ def load_data(path: str, cluster: bool, cluster_path=None):
         else:
             data = merge_with_cluster(data, cluster_path)
 
-    return data.dropna()
+    return data

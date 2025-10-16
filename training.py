@@ -13,9 +13,9 @@ from utilsTraining import prepareData, EarlyStopping, prepare_sequences, set_see
 """ Training of the data """
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int, num_layers: int, dropout: float):
+    def __init__(self, input_size: int, hidden_size: int, num_layers: int, dropout_rate: float):
         super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout_rate)
         self.fc = nn.Linear(hidden_size, 1)
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -55,7 +55,7 @@ class TrainingModel:
             model_path_i = os.path.join(model_path, f'lstm_model_cluster_{i}.pt')
             if not os.path.exists(model_path_i):
                 raise ValueError(f"Model path {model_path_i} does not exist")
-            model = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.dropout_rate)
+            model = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout_rate=self.dropout_rate)
             model.load_state_dict(torch.load(model_path_i, map_location=self.device))
             model.eval()
             self.models[i] = model 
@@ -106,7 +106,7 @@ class TrainingModel:
             joblib.dump(f_scaler, os.path.join(models_dir, f'feature_scaler_cluster_{cluster}.pkl')) # save the scalers
             joblib.dump(t_scaler, os.path.join(models_dir, f'target_scaler_cluster_{cluster}.pkl')) 
             
-            model = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.dropout_rate).to(self.device)
+            model = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout_rate=self.dropout_rate).to(self.device)
             criterion = nn.MSELoss()
             optimizer = optim.AdamW(model.parameters(), lr, weight_decay=weight_decay_rate)
             model_path = os.path.join(models_dir, f'lstm_model_cluster_{cluster}.pt')
@@ -152,10 +152,7 @@ class TrainingModel:
                     break
             self.models[cluster] = early_stopping.best_model
             print(f"Best MSE per cluster {cluster}: {-early_stopping.best_score:.4f}")
-            cluster_losses[cluster] = {
-                'train_loss': epoch_loss,
-                'test_loss': -early_stopping.best_score
-            }
+            
         self.model_path = models_dir
 
         print("\nLoss finale per ogni cluster:")
@@ -191,7 +188,7 @@ class TrainingModel:
         X_plot, y_plot_scaled = prepare_sequences(cow_scaled_df, self.features, self.target_name, self.sequence_length)
         X_plot_tensor = torch.tensor(X_plot, dtype=torch.float32).to(self.device)
 
-        model_plot = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout=self.dropout_rate).to(self.device)
+        model_plot = LSTMModel(input_size=len(self.features), hidden_size=self.hidden_size, num_layers=self.num_layers, dropout_rate=self.dropout_rate).to(self.device)
         plot_model_path = os.path.join(self.model_path, f'lstm_model_cluster_{cluster_id}.pt')
         model_plot.load_state_dict(torch.load(plot_model_path, map_location=self.device))
         model_plot.eval()
