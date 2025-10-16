@@ -47,7 +47,7 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
                 sequences.append(cow_features[i:i+sequence_length])
                 targets.append(cow_target[i+sequence_length])
         else:
-            print(f"Warning: Cow {cow_id} has only {len(cow_df)} records, which is not enough for a sequence of length {sequence_length}. Skipping this cow.")
+            #print(f"Warning: Cow {cow_id} has only {len(cow_df)} records, which is not enough for a sequence of length {sequence_length}. Skipping this cow.")
             continue 
     
     if not sequences:
