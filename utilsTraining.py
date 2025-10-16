@@ -87,13 +87,13 @@ def prepareData(data, device, random_state, features, target_name, sequence_leng
     X_train, y_train = prepare_sequences(train_scaled_df, features, target_name,  sequence_length)
     X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length)
 
+    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32))
+    test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32), torch.tensor(y_test, dtype=torch.float32))
+    
     use_gpu = device.type == 'cuda'
     num_workers = min(os.cpu_count(), 8)
     
-    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32).to(device), torch.tensor(y_train, dtype=torch.float32).to(device))
     train_loader = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=num_workers if use_gpu else 0, pin_memory=use_gpu)    
-
-    test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32).to(device), torch.tensor(y_test, dtype=torch.float32).to(device))
     test_loader = DataLoader(test_dataset, batch_size, shuffle=False, num_workers=num_workers if use_gpu else 0, pin_memory=use_gpu)
 
     return train_loader, test_loader, feature_scaler, target_scaler
