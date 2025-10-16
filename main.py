@@ -2,6 +2,7 @@ from data_loading import load_data, merge_with_cluster
 from clustering import ClusterGeneration
 from training import TrainingModel
 import shutil
+import torch
 import yaml
 import os
 
@@ -63,6 +64,11 @@ def load_conf():
         
 
 if __name__ == "__main__":
+    try:
+        torch.multiprocessing.set_start_method('spawn')
+    except RuntimeError:
+        pass
+
     data, model, generator = load_conf()
 
     cow_id = "AZ10_481"
