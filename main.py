@@ -39,6 +39,15 @@ def load_conf():
         print(f"Cluster generati e salvati in {cluster_path}\n")
 
         data = merge_with_cluster(data, cluster_path)
+
+
+        with open(output_config_path, 'r') as f:
+            run_config = yaml.safe_load(f)
+
+        run_config['clustering']['perform_clustering'] = False
+
+        with open(output_config_path, 'w') as f:
+            yaml.dump(run_config, f, default_flow_style=False)
     else: 
         generator = ClusterGeneration(default=True, cluster_path=cluster_path)
 
