@@ -94,8 +94,7 @@ if __name__ == "__main__":
             _ , global_test_data = split_cows_by_id(data, random_state=config['training']['random_state'])
             
             analyzer = ModelAnalyzer(model_path=model_path, config=config)
-            analyzer.analyze_performance(global_test_data)
-            analyzer.analyze_feature_importance(global_test_data)
+            analyzer.run_full_analysis(global_test_data)
 
         elif scelta == "2":
             loop2 = True

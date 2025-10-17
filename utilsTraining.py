@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
+import torch.nn as nn
 import pandas as pd
 import numpy as np
 import random
@@ -48,7 +49,6 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
                 sequences.append(cow_features[i:i+sequence_length])
                 targets.append(cow_target[i+sequence_length])
         else:
-            #print(f"Warning: Cow {cow_id} has only {len(cow_df)} records, which is not enough for a sequence of length {sequence_length}. Skipping this cow.")
             continue 
     
     if not sequences:
@@ -109,10 +109,6 @@ def set_seeds(seed_value=42):
         torch.backends.cudnn.benchmark = False
 
 def run_permutation_importance(model, test_loader, feature_names, target_scaler, device):
-    """
-    Calcola la feature importance tramite permutazione sul set di test.
-    Restituisce un DataFrame con l'importanza di ogni feature.
-    """
     model.eval()
 
     # 1. Calcola la baseline loss (MSE) sul test set non modificato
@@ -124,14 +120,10 @@ def run_permutation_importance(model, test_loader, feature_names, target_scaler,
             loss = nn.MSELoss()(outputs, batch_y)
             baseline_mse += loss.item() * batch_X.size(0)
     baseline_mse /= len(test_loader.dataset)
-    print(f"Baseline Test MSE (scaled): {baseline_mse:.4f}\n")
 
-    # Dizionario per salvare l'importanza
     importances = {}
 
-    # 2. Itera su ogni feature
     for i, feature_name in enumerate(feature_names):
-        print(f"Permuting feature: {feature_name}...")
 
         permuted_mse = 0.0
 

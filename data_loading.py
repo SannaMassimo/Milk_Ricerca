@@ -68,7 +68,7 @@ def load_data(path: str, cluster: bool, cluster_path=None):
 
     data['date'] = pd.to_datetime(data['date'])
     data = data.sort_values(by=['id_cow', 'date'])
-
+    
     data['milk_diff'] = data.groupby('id_cow')['tot_prod'].diff()
 
     data['day_of_month'] = data['date'].dt.day
