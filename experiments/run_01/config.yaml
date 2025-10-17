@@ -1,6 +1,6 @@
 clustering:
   n_clusters: 4
-  perform_clustering: false
+  perform_clustering: true
   random_state: 42
 features:
 - LP
