@@ -43,7 +43,7 @@ class ClusterGeneration():
         return self.cluster_mapping # numpy-format output cluster
 
     def save_clusters(self, ouput_path: str = "clusters.npy"): # this save your clusters in numpy format 
-        if self.cluster is None:
+        if self.cluster_mapping is None:
             raise Exception("Are you sure you compute clusters?")
         else:
             cow_ids = list(self.cluster_mapping.keys())
