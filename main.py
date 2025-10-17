@@ -82,7 +82,7 @@ if __name__ == "__main__":
         scelta = input("\nInsert: \n1: To Analyze the model\n2: To chosee a cow to analyze\n3: to exit\n")
 
         if scelta == "1":
-            _ , global_test_data, _ = split_cows_by_id(data, random_state=config['training']['random_state'])
+            _ , global_test_data = split_cows_by_id(data, random_state=config['training']['random_state'])
             
             analyzer = ModelAnalyzer(model_path=model_path, config=config)
             analyzer.analyze_performance(global_test_data)
