@@ -37,7 +37,6 @@ class ModelAnalyzer:
         
         self._analyze_feature_importance(test_data)
 
-    # ... _load_models_and_scalers e _analyze_performance rimangono invariati ...
     def _load_models_and_scalers(self):
         num_clusters = self.config['clustering']['n_clusters']
         features = self.config['features']
@@ -108,21 +107,16 @@ class ModelAnalyzer:
         return self._calculate_metrics(np.array(all_baseline_targets), np.array(all_baseline_preds))
 
     def _analyze_rolling_mean_baseline(self, test_data: pd.DataFrame, window_size: int):
-        """
-        Analizza una baseline basata sulla media mobile dei giorni precedenti.
-        """
         all_baseline_preds, all_baseline_targets = [], []
         
         baseline_df = test_data[['id_cow', 'date', 'tot_prod']].copy()
         baseline_df.sort_values(['id_cow', 'date'], inplace=True)
         
         # Calcola la media mobile sui 'window_size' giorni precedenti per ogni mucca
-        # .transform è perfetto per applicare una funzione a un gruppo e mantenere l'indice originale
         baseline_df['prediction'] = baseline_df.groupby('id_cow')['tot_prod'].transform(
             lambda x: x.rolling(window=window_size).mean().shift(1)
         )
         
-        # Rimuovi le righe dove non è stato possibile calcolare la previsione
         baseline_df.dropna(inplace=True)
         
         all_baseline_preds.extend(baseline_df['prediction'].values)

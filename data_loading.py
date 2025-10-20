@@ -48,7 +48,7 @@ def load_data(path: str, cluster: bool, cluster_path=None):
     # Features Generation
 
     data["avg_milk_duration"].fillna(method="backfill", inplace=True)
-    data["avg_milk_duration"] = pd.to_timedelta(["00:"+d for d in data.avg_milk_duration]).total_seconds()
+    data["avg_milk_duration"] = pd.to_timedelta(["00:"+d for d in data.avg_milk_duration]).fillna("00:00").total_seconds()
     data['prod_avg'] = data.groupby('id_cow')['tot_prod'].transform(lambda x: x.mean())
     data['prod_var'] = data.groupby('id_cow')['tot_prod'].transform(lambda x: x.std())
 

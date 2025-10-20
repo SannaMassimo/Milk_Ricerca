@@ -34,13 +34,13 @@ def load_conf():
         
         generator = ClusterGeneration(default=False)
         generator.fit_predict(n_clusters=config['clustering']['n_clusters'], data=data, random_state = config['clustering']['random_state'], verbose = config['verbose'])
-        generator.save_clusters(ouput_path=cluster_path)
+        generator.save_clusters(output_path=cluster_path)
         
         print(f"Cluster generati e salvati in {cluster_path}\n")
 
         data = merge_with_cluster(data, cluster_path)
 
-
+        output_config_path = os.path.join(model_path, 'config.yaml')
         with open(output_config_path, 'r') as f:
             run_config = yaml.safe_load(f)
 

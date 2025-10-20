@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import torch.optim as optim
+from tqdm.auto import tqdm
 import torch.nn as nn
 import seaborn as sns
 import pandas as pd
@@ -118,7 +119,9 @@ class TrainingModel:
             for epoch in range(epochs):
                 model.train()
                 epoch_loss = 0.0
-                for batch_X, batch_y in train_loader:
+
+                batch_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
+                for batch_X, batch_y in batch_bar:
                     batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device).unsqueeze(1)
 
                     optimizer.zero_grad()
@@ -127,6 +130,8 @@ class TrainingModel:
                     loss.backward()
                     optimizer.step()
                     epoch_loss += loss.item() * batch_X.size(0)
+
+                    batch_bar.set_postfix(loss=f"{loss.item():.4f}")
 
                 epoch_loss /= len(train_loader.dataset)
                 train_losses.append(epoch_loss)

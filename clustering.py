@@ -42,13 +42,13 @@ class ClusterGeneration():
 
         return self.cluster_mapping # numpy-format output cluster
 
-    def save_clusters(self, ouput_path: str = "clusters.npy"): # this save your clusters in numpy format 
+    def save_clusters(self, output_path: str = "clusters.npy"): # this save your clusters in numpy format 
         if self.cluster_mapping is None:
             raise Exception("Are you sure you compute clusters?")
         else:
             cow_ids = list(self.cluster_mapping.keys())
             clusters = list(self.cluster_mapping.values())
-            np.savez(ouput_path, cow_ids=cow_ids, clusters=clusters)
+            np.savez(output_path, cow_ids=cow_ids, clusters=clusters)
             return print("File Saved!")
 
     def print_clusters(self, data): # this plot all the clusters showing the average production of each 
