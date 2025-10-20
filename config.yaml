@@ -1,64 +1,40 @@
-# =================================================
-# CONFIGURAZIONE ESPERIMENTO FORECASTING LATTE
-# =================================================
-
-# -------------------------------------------------
-# Percorsi dei dati e degli output
-# -------------------------------------------------
-paths:
-  input_data: "./data/AMerged.csv"
-  model_output_dir: "./experiments/run_01" # Unica cartella per tutti gli output di questo run
-  cluster_file: "./data/clusters4.npz" 
-
-# -------------------------------------------------
-# Parametri per la generazione dei cluster
-# -------------------------------------------------
 clustering:
-  perform_clustering: true # Se true, genera nuovi cluster. Se false, carica da cluster_file
   n_clusters: 4
+  perform_clustering: false
   random_state: 42
-
-# -------------------------------------------------
-# Selezione delle feature per il training
-# -------------------------------------------------
 features:
-  # Lista di tutte le feature da usare nel modello LSTM
-  - 'LP'
-  - 'milkings'
-  - 'cons'
-  - 'milk_diff'
-  - 'THI'
-  - 'prod_avg'
-  - 'avg_prod_avg'
-  - 'avg_prod_var'
-  - 'month_sin'
-  - 'month_cos'
-  - 'prod_acceleration'
-  - 'prod_velocity'
-
-# -------------------------------------------------
-# Configurazione del modello e del training
-# -------------------------------------------------
+- LP
+- milkings
+- cons
+- milk_diff
+- THI
+- prod_avg
+- avg_prod_avg
+- avg_prod_var
+- month_sin
+- month_cos
+- prod_acceleration
+- prod_velocity
+paths:
+  cluster_file: ./data/clusters4.npz
+  input_data: ./data/AMerged.csv
+  model_output_dir: ./experiments/run_02
 training:
-  perform_training: true # Se true, genera nuovi cluster. Se false, carica da cluster_file
-  target_name: 'tot_prod'
-  sequence_length: 10
-  test_size: 0.085
-  random_state: 42
-  # Architettura del modello
-  model_params:
-    hidden_size: 32
-    num_layers: 2
-    dropout_rate: 0.4
-  # Parametri di training
+  early_stopping:
+    delta: 1.0e-05
+    patience: 35
   hyperparameters:
-    epochs: 1000
     batch_size: 64
+    epochs: 1000
     learning_rate: 0.0005
     weight_decay: 0.0001
-  # Early Stopping
-  early_stopping:
-    patience: 35
-    delta: 0.00001
-
+  model_params:
+    dropout_rate: 0.4
+    hidden_size: 32
+    num_layers: 2
+  perform_training: true
+  random_state: 42
+  sequence_length: 10
+  target_name: tot_prod
+  test_size: 0.085
 verbose: 1
