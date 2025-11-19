@@ -33,6 +33,7 @@ training:
     hidden_size: 32
     num_layers: 2
   perform_training: false
+  prediction_horizon: 7
   random_state: 42
   sequence_length: 10
   target_name: tot_prod

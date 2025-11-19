@@ -9,11 +9,10 @@ import os
 
 """ utils functions for training """
 
-# Split the dataset in train and test set (test_size can be either the number of cows or the percentage of cows)
+# Split the dataset in train and test set
 def split_cows_by_id(cluster_data, random_state=None, test_size=0.085):
     unique_cows = cluster_data['id_cow'].unique()
 
-    # Calculate number of cow for the test
     if test_size < 1:
       n_test = max(1, int(len(unique_cows) * test_size))
     else:
@@ -31,23 +30,27 @@ def split_cows_by_id(cluster_data, random_state=None, test_size=0.085):
 
     return train_data, test_data
 
-# Prepare sequences for LSTM
-def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
+# Prepare sequences for LSTM (MODIFICATO PER MULTI-STEP)
+def prepare_sequences(df, feature_cols, target_col, sequence_length=8, prediction_horizon=1):
     sequences = []
     targets = []
 
-    # Sort by cow and date
+    # Sort by cow and date ensures temporal order
     df = df.sort_values(['id_cow', 'date'])
     grouped = df.groupby('id_cow')
 
     for cow_id, cow_df in grouped:
-        # Check if the cow has enough data for at least one sequence + target
-        if len(cow_df) > sequence_length:
+        # Check if the cow has enough data for sequence + horizon
+        # We need sequence_length rows for input AND prediction_horizon rows for target
+        if len(cow_df) >= sequence_length + prediction_horizon:
             cow_features = cow_df[feature_cols].values.astype(np.float32)
             cow_target = cow_df[target_col].values.astype(np.float32)
-            for i in range(len(cow_df) - sequence_length):
-                sequences.append(cow_features[i:i+sequence_length])
-                targets.append(cow_target[i+sequence_length])
+            
+            # Loop limit must ensure we don't go out of bounds for the target window
+            for i in range(len(cow_df) - sequence_length - prediction_horizon + 1):
+                sequences.append(cow_features[i : i + sequence_length])
+                # Target is now a slice of length prediction_horizon
+                targets.append(cow_target[i + sequence_length : i + sequence_length + prediction_horizon])
         else:
             continue 
     
@@ -58,7 +61,7 @@ def prepare_sequences(df, feature_cols, target_col, sequence_length=8):
     return np.array(sequences), np.array(targets)
 
 
-def prepareData(data, device, random_state, features, target_name, sequence_length, batch_size, test_size):
+def prepareData(data, device, random_state, features, target_name, sequence_length, prediction_horizon, batch_size, test_size):
     train_data, test_data = split_cows_by_id(data, random_state, test_size=test_size)
 
     feature_scaler = StandardScaler()
@@ -84,14 +87,14 @@ def prepareData(data, device, random_state, features, target_name, sequence_leng
     train_scaled_df = train_scaled_df.dropna()
     test_scaled_df = test_scaled_df.dropna()
 
-    X_train, y_train = prepare_sequences(train_scaled_df, features, target_name, sequence_length)    
-    X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length)
+    # Passiamo prediction_horizon a prepare_sequences
+    X_train, y_train = prepare_sequences(train_scaled_df, features, target_name, sequence_length, prediction_horizon)    
+    X_test, y_test = prepare_sequences(test_scaled_df, features, target_name, sequence_length, prediction_horizon)
 
     train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32))
     test_dataset = TensorDataset(torch.tensor(X_test, dtype=torch.float32), torch.tensor(y_test, dtype=torch.float32))
     
     use_gpu = device.type == 'cuda'
-    
     num_workers = 0 
     
     train_loader = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=num_workers, pin_memory=use_gpu)    
@@ -111,11 +114,11 @@ def set_seeds(seed_value=42):
 def run_permutation_importance(model, test_loader, feature_names, target_scaler, device):
     model.eval()
 
-    # 1. Calcola la baseline loss (MSE) sul test set non modificato
     baseline_mse = 0.0
     with torch.no_grad():
         for batch_X, batch_y in test_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device).unsqueeze(1)
+            # batch_y ha dimensione (batch, horizon), non serve unsqueeze(1) se horizon > 1
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             outputs = model(batch_X)
             loss = nn.MSELoss()(outputs, batch_y)
             baseline_mse += loss.item() * batch_X.size(0)
@@ -124,42 +127,32 @@ def run_permutation_importance(model, test_loader, feature_names, target_scaler,
     importances = {}
 
     for i, feature_name in enumerate(feature_names):
-
         permuted_mse = 0.0
-
-        # Copia i dati per non modificare l'originale
         X_test_original = test_loader.dataset.tensors[0].clone().cpu().numpy()
         y_test_original = test_loader.dataset.tensors[1].clone().cpu().numpy()
 
-        # Permuta (mescola) solo la colonna della feature corrente
         np.random.shuffle(X_test_original[:, :, i])
 
-        # Crea un nuovo DataLoader con i dati permutati
         permuted_dataset = TensorDataset(torch.tensor(X_test_original, dtype=torch.float32).to(device),
                                          torch.tensor(y_test_original, dtype=torch.float32).to(device))
         permuted_loader = DataLoader(permuted_dataset, batch_size=test_loader.batch_size)
 
-        # 3. Calcola la loss con la feature permutata
         with torch.no_grad():
             for batch_X, batch_y in permuted_loader:
-                batch_y = batch_y.unsqueeze(1)
+                # batch_y è già corretto
                 outputs = model(batch_X)
                 loss = nn.MSELoss()(outputs, batch_y)
                 permuted_mse += loss.item() * batch_X.size(0)
         permuted_mse /= len(permuted_loader.dataset)
 
-        # 4. L'importanza è l'aumento della loss
-        # Usiamo la differenza, ma si potrebbe usare anche il rapporto
         importance_score = permuted_mse - baseline_mse
         importances[feature_name] = importance_score
 
-    # 5. Formatta e restituisci i risultati
     importance_df = pd.DataFrame.from_dict(importances, orient='index', columns=['Importance (Increase in MSE)'])
     importance_df = importance_df.sort_values(by='Importance (Increase in MSE)', ascending=False)
 
     return importance_df
 
-# This class save the model if the validation loss decrease and stop the training if it doesn't decrease for a certain number of epochs
 class EarlyStopping:
     def __init__(self, patience=10, delta=0, path='checkpoint.pt'):
         self.patience = patience
