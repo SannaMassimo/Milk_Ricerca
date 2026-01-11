@@ -2,6 +2,7 @@ from data_loading import load_data, merge_with_cluster
 from utilsTraining import split_cows_by_id
 from clustering import ClusterGeneration
 from training import TrainingModel
+from baselines import BaselineRunner
 from analysis import ModelAnalyzer
 import shutil
 import torch
@@ -77,34 +78,65 @@ def load_conf():
         
 
 if __name__ == "__main__":
-    config_path = input("Wich config file do you want to start? (example: \"experiments/run_01/config.yaml\")\n")
+    config_path = input("Which config file do you want to start? (example: \"experiments/run_01/config.yaml\")\n")
     
     try:
         torch.multiprocessing.set_start_method('spawn')
     except RuntimeError:
         pass
     
-    data, model, generator = load_conf()
+    baseline = ""
+    while baseline != "yes" and baseline!="no":
+        baseline = input("Do you want to run baselines test ? (yes/no)")
 
-    loop1 = True
-    while(loop1):
-        scelta = input("\nInsert: \n1: To Analyze the model\n2: To chosee a cow to analyze\n3: to exit\n")
+    if baseline == "no":
+        data, model, generator = load_conf()
 
-        if scelta == "1":
-            _ , global_test_data = split_cows_by_id(data, random_state=config['training']['random_state'])
-            
-            analyzer = ModelAnalyzer(model_path=model_path, config=config)
-            analyzer.run_full_analysis(global_test_data)
+        loop1 = True
+        while(loop1):
+            scelta = input("\nInsert: \n1: To Analyze the model\n2: To chosee a cow to analyze\n3: to exit\n")
 
-        elif scelta == "2":
-            loop2 = True
-            while(loop2):
-                #cow_id = "AZ10_481"
-                cow_id = input("Choose cow id to analyze (for example AZ10_481)\n")
+            if scelta == "1":
+                _ , global_test_data = split_cows_by_id(data, random_state=config['training']['random_state'])
+                
+                analyzer = ModelAnalyzer(model_path=model_path, config=config)
+                analyzer.run_full_analysis(global_test_data)
 
-                model.predict_cow(data, cow_id)
+            elif scelta == "2":
+                loop2 = True
+                while(loop2):
+                    #cow_id = "AZ10_481"
+                    cow_id = input("Choose cow id to analyze (for example AZ10_481)\n")
 
-                loop2 = False
+                    model.predict_cow(data, cow_id)
 
-        elif scelta == "3":
-            loop1 = False
+                    loop2 = False
+
+            elif scelta == "3":
+                loop1 = False
+    else:
+        # BASELINE MODE
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        cluster_path = config['paths']['cluster_file']
+        data = load_data(config['paths']['input_data'], 
+                        cluster=False, 
+                        cluster_path=cluster_path)
+
+        if os.path.exists(cluster_path):
+            data = merge_with_cluster(data, cluster_path)
+
+        runner = BaselineRunner(config, data)
+
+        # 1. Random Forest
+        runner.run_random_forest()
+
+        # 2. XGBoost
+        runner.run_xgboost()
+
+        # 3. ARIMA (Attivato)
+        runner.run_arima_baseline() 
+
+        # 4. Summary
+        runner.print_summary()

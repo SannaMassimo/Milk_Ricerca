@@ -35,7 +35,7 @@ training:
   perform_training: true
   random_state: 42
   sequence_length: 10
-  prediction_horizon: 7 
+  prediction_horizon: 1 
   target_name: tot_prod
   test_size: 0.085
 verbose: 1
